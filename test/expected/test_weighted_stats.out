@@ -1,4 +1,4 @@
-create extension weighted_mean;
+create extension weighted_stats;
 create temp table test as (
   select a::numeric, b::numeric 
   from 

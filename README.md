@@ -1,1 +1,1 @@
-doc/weighted_mean.md
+doc/weighted_stats.md

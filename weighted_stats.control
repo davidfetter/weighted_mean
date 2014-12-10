@@ -1,0 +1,5 @@
+# weighted_stats extension
+comment = 'A weighted statistical aggregate function extension'
+default_version = '1.0.0'
+module_pathname = '$libdir/weighted_stats'
+relocatable = true

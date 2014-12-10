@@ -1,4 +1,4 @@
-EXTENSION = weighted_mean
+EXTENSION = weighted_stats
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | \
                sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 DOCS = README
@@ -17,7 +17,7 @@ sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 	cp $< $@
 
 release-zip: all
-	git archive --format zip --prefix=weighted_mean-$(EXTVERSION)/ --output ./weighted_mean-$(EXTVERSION).zip master
+	git archive --format zip --prefix=weighted_stats-$(EXTVERSION)/ --output ./weighted_stats-$(EXTVERSION).zip master
 
 DATA = $(wildcard sql/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql
