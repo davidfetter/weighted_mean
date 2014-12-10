@@ -3,11 +3,12 @@ Weighted Stats extension for PostgreSQL
 
 This extension provides weighted statistical aggregate functions for
 PostgreSQL.  It is based on the work of Ronan Dunklau and Peter
-Eisentraut in the weighted_mean package.
+Eisentraut in the weighted_mean package.  Thanks as usual to Andrew
+Gierth, who showed how to do these things efficiently.
 
 The weighted stats are defined as two-column aggregation functions.
-The first column contains the measure to be averaged, the second
-contains the weight of each measure.
+The first column contains the measure to be used.  The second contains
+the weight of each measure.
 
 This extension is implemented as a C library.
 
