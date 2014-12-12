@@ -1,4 +1,3 @@
-
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/memutils.h"
@@ -313,8 +312,8 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 					   weight,
 					   DirectFunctionCall2(
 						   numeric_mul,
-						   DirectFunctionCall2(numeric_sub, weight, A),
-						   DirectFunctionCall2(numeric_sub, weight, new_A)
+						   DirectFunctionCall2(numeric_sub, value, A),
+						   DirectFunctionCall2(numeric_sub, value, new_A)
 					   )
 				   )
 			   );
