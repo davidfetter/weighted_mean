@@ -253,14 +253,6 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	if (DirectFunctionCall2(numeric_eq, weight, zero))
 		PG_RETURN_POINTER(state);
 
-	/*
-	 * The new running totals must be allocated in the long-lived context.  We
-	 * rely on the numeric_* functions to clean up after themselves (which they
-	 * currently do, but only if the input is already detoasted); we could play
-	 * safe and copy only the final results into aggcontext, but this turns out
-	 * to have a measurable performance hit.
-	 */
-
 	s_2 = state->s_2;
 	s_1 = state->s_1;
 	W = state->W;
