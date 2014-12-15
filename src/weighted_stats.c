@@ -60,8 +60,8 @@ _weighted_mean_final(PG_FUNCTION_ARGS)
 		return zero;
 	}
 
-	if (DirectFunctionCall2(numeric_eq,
-							zero, state->running_weight))
+	if (DatumGetBool(DirectFunctionCall2(numeric_eq,
+										 zero, state->running_weight)))
 	{
 		total = zero;
 	}
@@ -192,9 +192,13 @@ _weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 							 * input...
 							 */
 							DirectFunctionCall2(
-								numeric_div,
-								state->s_2,
-								state->s_2
+								numeric_add,
+								DirectFunctionCall2(
+									numeric_sub,
+									state->s_2,
+									state->s_2
+									),
+								make_numeric(1)
 								)
 							)
 						),
@@ -284,7 +288,7 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	/*
 	 * We also skip updating when the weight is zero.
 	 */
-	if (DirectFunctionCall2(numeric_eq, weight, state->zero))
+	if (DatumGetBool(DirectFunctionCall2(numeric_eq, weight, state->zero)))
 		PG_RETURN_POINTER(state);
 
 	/*
