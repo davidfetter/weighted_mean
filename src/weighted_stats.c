@@ -26,17 +26,15 @@ typedef struct WeightedStddevSampInternalState
 {
 	Datum		s_2; /* sum(w_k * x_k ^ 2) */
 	Datum		s_1; /* sum(w_k * x_k ^ 1) */
-	Datum		W;  /* sum(w_k) */
-	Datum		A;  /* A_0 = 0.  A_k = A_k-1 + w_k * (x_k - A_k-1) / W_k, k > 0 */
-	Datum		Q;  /* Q_0 = 0.  Q_k = Q_k-1 + w_k * (x_k - A_k-1) / (x_k - A_k), k > 0 */
-	Datum		n_prime;  /* number of elements with non-zero weights */
+	Datum		s_0; /* sum(w_k) */
+	int64		n_prime;  /* number of elements with non-zero weights */
 }	WeightedStddevSampInternalState;
 
 
 static Datum
-make_numeric(int i)
+make_numeric(int64 i)
 {
-	return DirectFunctionCall1(int4_numeric, Int32GetDatum(i));
+	return DirectFunctionCall1(int8_numeric, Int64GetDatumFast(i));
 }
 
 /*
@@ -158,28 +156,67 @@ _weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 {
 	WeightedStddevSampInternalState *state;
 	Datum		result;
-	Datum		one = make_numeric(1);
 
 	state = PG_ARGISNULL(0)
 			? NULL
 			: (WeightedStddevSampInternalState *) PG_GETARG_POINTER(0);
 
 	if ((state == NULL) || /* No row has ever been processed. */
-		(DirectFunctionCall2(numeric_le, state->n_prime, one))) /* Too few non-zero weights */
+		(state->n_prime < 2)) /* Too few non-zero weights */
 	{
 		PG_RETURN_NULL();
 	}
 	else
 	{
-		result = DirectFunctionCall1(
-					numeric_sqrt,
+		Datum	n_prime = make_numeric(state->n_prime);
+
+		/* sqrt((n/(n-1)) * ((s0*s2 - s1*s1)/(s0*s0)) */
+
+		result
+			= DirectFunctionCall1(
+				numeric_sqrt,
+				DirectFunctionCall2(
+					numeric_mul,
 					DirectFunctionCall2(
 						numeric_div,
-						DirectFunctionCall2(numeric_mul, state->n_prime, state->Q),
+						n_prime,
+						DirectFunctionCall2(
+							numeric_sub,
+							n_prime,
+							/*
+							 * This rather convoluted way to compute the value
+							 * 1 gives us a result which should have at least
+							 * as big a decimal scale as s_2 does, which should
+							 * guarantee that our result is as precise as the
+							 * input...
+							 */
+							DirectFunctionCall2(
+								numeric_div,
+								state->s_2,
+								state->s_2
+								)
+							)
+						),
+					DirectFunctionCall2(
+						numeric_div,
+						DirectFunctionCall2(
+							numeric_sub,
+							DirectFunctionCall2(
+								numeric_mul,
+								state->s_0,
+								state->s_2
+								),
+							DirectFunctionCall2(
+								numeric_mul,
+								state->s_1,
+								state->s_1
+								)
+							),
 						DirectFunctionCall2(
 							numeric_mul,
-							DirectFunctionCall2(numeric_sub, state->n_prime, one),
-							state->W
+							state->s_0,
+							state->s_0
+							)
 						)
 					)
 				);
@@ -194,14 +231,11 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	WeightedStddevSampInternalState *state;
 	Datum		value,
 				weight,
-				s_2, new_s_2,
-				s_1, new_s_1,
-				W, new_W,
-				A, new_A,
-				Q, new_Q,
-				n_prime, new_n_prime;
-	Datum		zero = make_numeric(0);
-	Datum		one = make_numeric(1);
+				old_s_0,
+				old_s_1,
+				old_s_2,
+				w_v,
+				w_v2;
 	MemoryContext aggcontext,
 				  oldcontext;
 
@@ -217,10 +251,8 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 		state = (WeightedStddevSampInternalState *) palloc(sizeof(WeightedStddevSampInternalState));
 		state->s_2 = make_numeric(0);
 		state->s_1 = make_numeric(0);
-		state->W = make_numeric(0);
-		state->A = make_numeric(0);
-		state->Q = make_numeric(0);
-		state->n_prime = make_numeric(0);
+		state->s_0 = make_numeric(0);
+		state->n_prime = 0;
 		MemoryContextSwitchTo(oldcontext);
 	}
 	else
@@ -250,8 +282,15 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	/*
 	 * We also skip updating when the weight is zero.
 	 */
-	if (DirectFunctionCall2(numeric_eq, weight, zero))
+	if (DirectFunctionCall2(numeric_eq, weight, make_numeric(0)))
 		PG_RETURN_POINTER(state);
+
+	/*
+	 * Compute intermediate values w*v and w*(v^2) in the short-lived context
+	 */
+
+	w_v = DirectFunctionCall2(numeric_mul, weight, value);
+	w_v2 = DirectFunctionCall2(numeric_mul, w_v, value);
 
 	/*
 	 * The new running totals must be allocated in the long-lived context.  We
@@ -261,78 +300,21 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	 * to have a measurable performance hit.
 	 */
 
-	s_2 = state->s_2;
-	s_1 = state->s_1;
-	W = state->W;
-	A = state->A;
-	Q = state->Q;
-	n_prime = state->n_prime;
-
-	new_s_2 = DirectFunctionCall2(
-							 numeric_add,
-							 s_2,
-							 DirectFunctionCall2(
-								 numeric_mul,
-								 weight,
-								 DirectFunctionCall2(
-									 numeric_mul,
-									 value,
-									 value
-								 )
-							 )
-						 );
-	new_s_1 = DirectFunctionCall2(
-					 numeric_add,
-					 s_1,
-					 DirectFunctionCall2(
-						 numeric_mul,
-						 weight,
-						 value
-					 )
-				 );
-	new_W = DirectFunctionCall2(numeric_add, W, weight);
-	new_A = DirectFunctionCall2(
-				   numeric_add,
-				   A,
-				   DirectFunctionCall2(
-					   numeric_mul,
-					   weight,
-					   DirectFunctionCall2(
-						   numeric_div,
-						   DirectFunctionCall2(numeric_sub, value, A),
-						   new_W
-					   )
-				   )
-			   );
-	new_Q = DirectFunctionCall2(
-				   numeric_add,
-				   Q,
-				   DirectFunctionCall2(
-					   numeric_mul,
-					   weight,
-					   DirectFunctionCall2(
-						   numeric_mul,
-						   DirectFunctionCall2(numeric_sub, value, A),
-						   DirectFunctionCall2(numeric_sub, value, new_A)
-					   )
-				   )
-			   );
-	new_n_prime = DirectFunctionCall2(numeric_add, n_prime, one);
-
 	oldcontext = MemoryContextSwitchTo(aggcontext);
 
-	pfree(DatumGetPointer(state->s_2));
-	state->s_2 = datumCopy(new_s_2, false, -1);
-	pfree(DatumGetPointer(state->s_1));
-	state->s_1 = datumCopy(new_s_1, false, -1);
-	pfree(DatumGetPointer(state->W));
-	state->W = datumCopy(new_W, false, -1);
-	pfree(DatumGetPointer(state->A));
-	state->A = datumCopy(new_A, false, -1);
-	pfree(DatumGetPointer(state->Q));
-	state->Q = datumCopy(new_Q, false, -1);
-	pfree(DatumGetPointer(state->n_prime));
-	state->n_prime = datumCopy(new_n_prime, false, -1);
+	old_s_2 = state->s_2;
+	old_s_1 = state->s_1;
+	old_s_0 = state->s_0;
+
+	state->s_0 = DirectFunctionCall2(numeric_add, old_s_0, weight);
+	state->s_1 = DirectFunctionCall2(numeric_add, old_s_1, w_v);
+	state->s_2 = DirectFunctionCall2(numeric_add, old_s_2, w_v2);
+
+	state->n_prime += 1;
+
+	pfree(DatumGetPointer(old_s_2));
+	pfree(DatumGetPointer(old_s_1));
+	pfree(DatumGetPointer(old_s_0));
 
 	MemoryContextSwitchTo(oldcontext);
 

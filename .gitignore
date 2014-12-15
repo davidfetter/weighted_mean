@@ -18,3 +18,6 @@ objfiles.txt
 lcov.info
 coverage/
 /test/results/
+/results/
+regression.diffs
+regression.out
