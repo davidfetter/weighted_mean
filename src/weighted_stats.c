@@ -24,10 +24,11 @@ typedef struct WeightedMeanInternalState
 /* http://en.wikipedia.org/wiki/Standard_deviation#Rapid_calculation_methods */
 typedef struct WeightedStddevSampInternalState
 {
-	Datum		s_2; /* sum(w_k * x_k ^ 2) */
-	Datum		s_1; /* sum(w_k * x_k ^ 1) */
-	Datum		s_0; /* sum(w_k) */
-	int64		n_prime;  /* number of elements with non-zero weights */
+	int64		n_prime;	/* number of elements with non-zero weights */
+	Datum		zero;		/* always 0 */
+	Datum		s_2;		/* sum(w_k * x_k ^ 2) */
+	Datum		s_1;		/* sum(w_k * x_k ^ 1) */
+	Datum		s_0;		/* sum(w_k) */
 }	WeightedStddevSampInternalState;
 
 
@@ -252,6 +253,7 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 		state->s_2 = make_numeric(0);
 		state->s_1 = make_numeric(0);
 		state->s_0 = make_numeric(0);
+		state->zero = make_numeric(0);
 		state->n_prime = 0;
 		MemoryContextSwitchTo(oldcontext);
 	}
@@ -282,7 +284,7 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	/*
 	 * We also skip updating when the weight is zero.
 	 */
-	if (DirectFunctionCall2(numeric_eq, weight, make_numeric(0)))
+	if (DirectFunctionCall2(numeric_eq, weight, state->zero))
 		PG_RETURN_POINTER(state);
 
 	/*
