@@ -1,0 +1,18 @@
+Source: weighted-stats
+Section: database
+Priority: extra
+Maintainer: David Fetter <david@farmersbusinessnetwork.com>
+Build-Depends: debhelper (>= 9.20150101), postgresql-server-dev-all (>= 169)
+Standards-Version: 3.9.4
+Vcs-Git: git://github.com/cbrichford/weighted_stats.git
+Vcs-browser: https://github.com/cbrichford/weighted_stats.git
+Homepage: https://github.com/cbrichford/weighted_stats
+
+Package: postgresql-PGVERSION-weighted-stats
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, postgresql-PGVERSION
+Description: weighted-stats provides weighted statistical aggregate functions for PostgreSQL.
+ It is based on the work of Ronan Dunklau and Peter Eisentraut in the weighted_mean package. 
+ The weighted stats are defined as two-column aggregation functions. The first column contains
+ the measure to be used. The second contains the weight of each measure.
+
