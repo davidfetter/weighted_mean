@@ -4,16 +4,21 @@
 #include "utils/numeric.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
+#include <math.h>
 
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
 #endif
 
-PG_FUNCTION_INFO_V1(_weighted_mean_intermediate);
-PG_FUNCTION_INFO_V1(_weighted_mean_final);
-PG_FUNCTION_INFO_V1(_weighted_stddev_samp_intermediate);
-PG_FUNCTION_INFO_V1(_weighted_stddev_samp_final);
+PG_FUNCTION_INFO_V1(_numeric_weighted_mean_intermediate);
+PG_FUNCTION_INFO_V1(_numeric_weighted_mean_final);
+PG_FUNCTION_INFO_V1(_numeric_weighted_stddev_samp_intermediate);
+PG_FUNCTION_INFO_V1(_numeric_weighted_stddev_samp_final);
 
+PG_FUNCTION_INFO_V1(_float8_weighted_mean_intermediate);
+PG_FUNCTION_INFO_V1(_float8_weighted_mean_final);
+PG_FUNCTION_INFO_V1(_float8_weighted_stddev_samp_intermediate);
+PG_FUNCTION_INFO_V1(_float8_weighted_stddev_samp_final);
 
 typedef struct WeightedMeanInternalState
 {
@@ -44,7 +49,7 @@ make_numeric(int64 i)
  */
 
 Datum
-_weighted_mean_final(PG_FUNCTION_ARGS)
+_numeric_weighted_mean_final(PG_FUNCTION_ARGS)
 {
 	WeightedMeanInternalState *state;
 	Datum		total;
@@ -56,26 +61,20 @@ _weighted_mean_final(PG_FUNCTION_ARGS)
 
 	/* No row has ever been processed. */
 	if (state == NULL)
-	{
 		return zero;
-	}
 
 	if (DatumGetBool(DirectFunctionCall2(numeric_eq,
 										 zero, state->running_weight)))
-	{
 		total = zero;
-	}
 	else
-	{
 		total = DirectFunctionCall2(numeric_div,
 									state->running_sum, state->running_weight);
-	}
 
 	PG_RETURN_NUMERIC(total);
 }
 
 Datum
-_weighted_mean_intermediate(PG_FUNCTION_ARGS)
+_numeric_weighted_mean_intermediate(PG_FUNCTION_ARGS)
 {
 	WeightedMeanInternalState *state;
 	Datum		value,
@@ -87,10 +86,10 @@ _weighted_mean_intermediate(PG_FUNCTION_ARGS)
 				oldcontext;
 
 	if (!AggCheckCallContext(fcinfo, &aggcontext))
-	{
 		/* cannot be called directly because of internal-type argument */
-		elog(ERROR, "_weighted_mean_intermediate called in non-aggregate context");
-	}
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("_numeric_weighted_mean_intermediate called in non-aggregate context")));
 
 	if (PG_ARGISNULL(0))
 	{
@@ -101,9 +100,7 @@ _weighted_mean_intermediate(PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(oldcontext);
 	}
 	else
-	{
 		state = (WeightedMeanInternalState *) PG_GETARG_POINTER(0);
-	}
 
 	/*
 	 * We're non-strict, so we MUST check args for nullity ourselves before
@@ -153,7 +150,7 @@ _weighted_mean_intermediate(PG_FUNCTION_ARGS)
 }
 
 Datum
-_weighted_stddev_samp_final(PG_FUNCTION_ARGS)
+_numeric_weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 {
 	WeightedStddevSampInternalState *state;
 	Datum		result;
@@ -164,9 +161,7 @@ _weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 
 	if ((state == NULL) || /* No row has ever been processed. */
 		(state->n_prime < 2)) /* Too few non-zero weights */
-	{
 		PG_RETURN_NULL();
-	}
 	else
 	{
 		Datum	n_prime = make_numeric(state->n_prime);
@@ -231,7 +226,7 @@ _weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 }
 
 Datum
-_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
+_numeric_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 {
 	WeightedStddevSampInternalState *state;
 	Datum		value,
@@ -245,10 +240,8 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 				  oldcontext;
 
 	if (!AggCheckCallContext(fcinfo, &aggcontext))
-	{
 		/* cannot be called directly because of internal-type argument */
 		elog(ERROR, "_weighted_stddev_samp_intermediate called in non-aggregate context");
-	}
 
 	if (PG_ARGISNULL(0))
 	{
@@ -262,9 +255,7 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 		MemoryContextSwitchTo(oldcontext);
 	}
 	else
-	{
 		state = (WeightedStddevSampInternalState *) PG_GETARG_POINTER(0);
-	}
 
 	/*
 	 * We're non-strict, so we MUST check args for nullity ourselves before
@@ -325,4 +316,131 @@ _weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	MemoryContextSwitchTo(oldcontext);
 
 	PG_RETURN_POINTER(state);
+}
+
+
+Datum
+_float8_weighted_mean_intermediate(PG_FUNCTION_ARGS)
+{
+	double		   *state;
+	MemoryContext	aggcontext,
+					oldcontext;
+
+	if (!AggCheckCallContext(fcinfo, &aggcontext))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("__float8_weighted_mean_intermediate called in non-aggregate context")));
+
+	if (PG_ARGISNULL(0))
+	{
+		oldcontext = MemoryContextSwitchTo(aggcontext);
+		state = (double *) (palloc(2*sizeof(double)));
+		state[0] = 0.0;
+		state[1] = 0.0;
+		MemoryContextSwitchTo(oldcontext);
+	}
+	else
+		state = (double *) PG_GETARG_POINTER(0);
+
+	/* Skip on NULL inputs */
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+		PG_RETURN_POINTER(state);
+
+	state[0] += PG_GETARG_FLOAT8(1) * PG_GETARG_FLOAT8(2);
+	state[1] += PG_GETARG_FLOAT8(2);
+
+	PG_RETURN_POINTER(state);
+}
+
+Datum
+_float8_weighted_mean_final(PG_FUNCTION_ARGS)
+{
+	double	   *state;
+	double		total;
+
+	state = PG_ARGISNULL(0)
+			? NULL
+			: (double *) PG_GETARG_POINTER(0);
+
+	if (state == NULL || state[1] == 0.0)
+		return 0;
+
+	total = state[0]/state[1];
+
+	PG_RETURN_FLOAT8(total);
+}
+
+Datum
+_float8_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
+{
+	double	   *state;
+	double		value,
+				weight,
+				w_v,
+				w_v2;
+	MemoryContext	aggcontext,
+					oldcontext;
+
+	if (!AggCheckCallContext(fcinfo, &aggcontext))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("_float8_weighted_stddev_samp_intermediate called in non-aggregate context")));
+
+	if (PG_ARGISNULL(0))
+	{
+		oldcontext = MemoryContextSwitchTo(aggcontext);
+		state = (double *) palloc(4 * sizeof(double)); /* s_2, s_1, s_0, n_prime */
+		state[0] = 0.0;
+		state[1] = 0.0;
+		state[2] = 0.0;
+		state[3] = 0.0;
+		MemoryContextSwitchTo(oldcontext);
+	}
+	else
+		state = (double *) PG_GETARG_POINTER(0);
+
+	/* Skip NULLs and zero weights */
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2) || PG_GETARG_FLOAT8(2) == 0.0)
+		PG_RETURN_POINTER(state);
+
+	value = PG_GETARG_FLOAT8(1);
+	weight = PG_GETARG_FLOAT8(2);
+	w_v = weight * value;
+	w_v2 = w_v * value;
+
+	state[0] += weight;
+	state[1] += w_v;
+	state[2] += w_v2;
+	state[3] += 1.0;
+
+	PG_RETURN_POINTER(state);
+}
+
+Datum
+_float8_weighted_stddev_samp_final(PG_FUNCTION_ARGS)
+{
+	double	   *state;
+	double		s_2,
+				s_1,
+				s_0,
+				n_prime,
+				result;
+
+	state = PG_ARGISNULL(0)
+			? NULL
+			: (double *) PG_GETARG_POINTER(0);
+
+	if (state == NULL || state[3] < 2) /* No rows or too few nonzero weights */
+		PG_RETURN_NULL();
+	else
+	{
+		s_2 = state[0];
+		s_1 = state[1];
+		s_0 = state[2];
+		n_prime = state[3];
+		/* sqrt((n/(n-1)) * ((s0*s2 - s1*s1)/(s0*s0)) */
+		result = sqrt((n_prime/(n_prime - 1.0)) * ((s_0 * s_2 - s_1 * s_1)/(s_0 * s_0)));
+	}
+
+	PG_RETURN_FLOAT8(result);
 }

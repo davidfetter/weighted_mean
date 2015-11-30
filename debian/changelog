@@ -1,4 +1,8 @@
-weighted-stats (0.1-1) UNRELEASED; urgency=medium
+weighted-stats (0.2-1) UNRELEASED; urgency=medium
+
+  * Version bump.  float8 added.
+
+  -- david <david@farmersbusinessnetwork.com> Mon Nov 30 16:00:51 UTC 2015
 
   * Initial release.
 

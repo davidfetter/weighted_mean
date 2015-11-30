@@ -2,7 +2,7 @@ FROM debian:jessie
 MAINTAINER Christopher Brichford <chrisb@farmersbusinessnetwork.com>
 
 ENV POSTGRES_VERSION=9.4
-ENV WEIGHTED_STATS_VERSION=0.1
+ENV WEIGHTED_STATS_VERSION=0.2
 
 RUN apt-get update && apt-get install -y apt-transport-https && \
     apt-get clean
@@ -20,6 +20,6 @@ RUN apt-key add /etc/apt/postgres.pub.gpg && \
                        git && \
     apt-get clean
 
-COPY . /build/weighted-stats-0.1/
+COPY . /build/weighted-stats-0.2/
 
 # RUN make -C /build install

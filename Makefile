@@ -1,5 +1,5 @@
 EXTENSION = weighted_stats
-EXTVERSION = 0.1.0
+EXTVERSION = 0.2.0
 DOCS = README
 TESTS = $(wildcard test/sql/*.sql)
 REGRESS = $(patsubst test/sql/%.sql,%,$(TESTS))
