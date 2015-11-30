@@ -39,14 +39,14 @@ create aggregate weighted_stddev_samp (numeric, numeric)(
 );
 
 CREATE function _float8_weighted_mean_intermediate (
-  float8[], 
+  internal, 
   float8,
   float8)
-RETURNS float8[]
+RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
 
-CREATE function _float8_weighted_mean_final (float8[])
+CREATE function _float8_weighted_mean_final (internal)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
@@ -54,18 +54,18 @@ LANGUAGE C IMMUTABLE;
 create aggregate weighted_mean (float8, float8)(
   sfunc = _float8_weighted_mean_intermediate,
   finalfunc = _float8_weighted_mean_final,
-  stype = float8[]
+  stype = internal
 );
 
 CREATE function _float8_weighted_stddev_samp_intermediate (
-  float8[], 
+  internal, 
   float8,
   float8)
-RETURNS float8[]
+RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
 
-CREATE function _float8_weighted_stddev_samp_final (float8[])
+CREATE function _float8_weighted_stddev_samp_final (internal)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
@@ -73,6 +73,6 @@ LANGUAGE C IMMUTABLE;
 create aggregate weighted_stddev_samp (float8, float8)(
   sfunc = _float8_weighted_stddev_samp_intermediate,
   finalfunc = _float8_weighted_stddev_samp_final,
-  stype = float8[]
+  stype = internal
 );
 
