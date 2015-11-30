@@ -334,7 +334,7 @@ _float8_weighted_mean_intermediate(PG_FUNCTION_ARGS)
 	if (PG_ARGISNULL(0))
 	{
 		oldcontext = MemoryContextSwitchTo(aggcontext);
-		state = (double *) (palloc(2*sizeof(double)));
+		state = (double *) (palloc(2 * sizeof(double))); /* value, weight */
 		state[0] = 0.0;
 		state[1] = 0.0;
 		MemoryContextSwitchTo(oldcontext);
@@ -389,7 +389,7 @@ _float8_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	if (PG_ARGISNULL(0))
 	{
 		oldcontext = MemoryContextSwitchTo(aggcontext);
-		state = (double *) palloc(4 * sizeof(double)); /* s_2, s_1, s_0, n_prime */
+		state = (double *) (palloc(4 * sizeof(double))); /* s_2, s_1, s_0, n_prime */
 		state[0] = 0.0;
 		state[1] = 0.0;
 		state[2] = 0.0;
@@ -408,9 +408,9 @@ _float8_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
 	w_v = weight * value;
 	w_v2 = w_v * value;
 
-	state[0] += weight;
+	state[0] += w_v2;
 	state[1] += w_v;
-	state[2] += w_v2;
+	state[2] += weight;
 	state[3] += 1.0;
 
 	PG_RETURN_POINTER(state);
