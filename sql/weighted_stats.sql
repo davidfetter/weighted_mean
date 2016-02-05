@@ -74,3 +74,41 @@ CREATE AGGREGATE weighted_stddev_samp (float8, float8) (
     stype = internal
 );
 
+CREATE FUNCTION _float4_weighted_mean_intermediate (
+    internal,
+    float4,
+    float4)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION _float4_weighted_mean_final (internal)
+RETURNS float4
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE;
+
+CREATE AGGREGATE weighted_mean (float4, float4) (
+    sfunc = _float4_weighted_mean_intermediate,
+    finalfunc = _float4_weighted_mean_final,
+    stype = internal
+);
+
+CREATE FUNCTION _float4_weighted_stddev_samp_intermediate (
+    internal,
+    float4,
+    float4)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION _float4_weighted_stddev_samp_final (internal)
+RETURNS float4
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE;
+
+CREATE AGGREGATE weighted_stddev_samp (float4, float4) (
+    sfunc = _float4_weighted_stddev_samp_intermediate,
+    finalfunc = _float4_weighted_stddev_samp_final,
+    stype = internal
+);
+

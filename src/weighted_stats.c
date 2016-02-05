@@ -20,6 +20,11 @@ PG_FUNCTION_INFO_V1(_float8_weighted_mean_final);
 PG_FUNCTION_INFO_V1(_float8_weighted_stddev_samp_intermediate);
 PG_FUNCTION_INFO_V1(_float8_weighted_stddev_samp_final);
 
+PG_FUNCTION_INFO_V1(_float4_weighted_mean_intermediate);
+PG_FUNCTION_INFO_V1(_float4_weighted_mean_final);
+PG_FUNCTION_INFO_V1(_float4_weighted_stddev_samp_intermediate);
+PG_FUNCTION_INFO_V1(_float4_weighted_stddev_samp_final);
+
 typedef struct WeightedMeanInternalState
 {
 	Datum		running_sum;
@@ -443,4 +448,130 @@ _float8_weighted_stddev_samp_final(PG_FUNCTION_ARGS)
 	}
 
 	PG_RETURN_FLOAT8(result);
+}
+
+Datum
+_float4_weighted_mean_intermediate(PG_FUNCTION_ARGS)
+{
+	float		   *state;
+	MemoryContext	aggcontext,
+					oldcontext;
+
+	if (!AggCheckCallContext(fcinfo, &aggcontext))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("__float4_weighted_mean_intermediate called in non-aggregate context")));
+
+	if (PG_ARGISNULL(0))
+	{
+		oldcontext = MemoryContextSwitchTo(aggcontext);
+		state = (float *) (palloc(2 * sizeof(float))); /* value, weight */
+		state[0] = 0.0;
+		state[1] = 0.0;
+		MemoryContextSwitchTo(oldcontext);
+	}
+	else
+		state = (float *) PG_GETARG_POINTER(0);
+
+	/* Skip on NULL inputs */
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2))
+		PG_RETURN_POINTER(state);
+
+	state[0] += PG_GETARG_FLOAT4(1) * PG_GETARG_FLOAT4(2);
+	state[1] += PG_GETARG_FLOAT4(2);
+
+	PG_RETURN_POINTER(state);
+}
+
+Datum
+_float4_weighted_mean_final(PG_FUNCTION_ARGS)
+{
+	float	   *state;
+	float		total;
+
+	state = PG_ARGISNULL(0)
+			? NULL
+			: (float *) PG_GETARG_POINTER(0);
+
+	if (state == NULL || state[1] == 0.0)
+		return 0;
+
+	total = state[0]/state[1];
+
+	PG_RETURN_FLOAT4(total);
+}
+
+Datum
+_float4_weighted_stddev_samp_intermediate(PG_FUNCTION_ARGS)
+{
+	float	   *state;
+	float		value,
+				weight,
+				w_v,
+				w_v2;
+	MemoryContext	aggcontext,
+					oldcontext;
+
+	if (!AggCheckCallContext(fcinfo, &aggcontext))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("_float4_weighted_stddev_samp_intermediate called in non-aggregate context")));
+
+	if (PG_ARGISNULL(0))
+	{
+		oldcontext = MemoryContextSwitchTo(aggcontext);
+		state = (float *) (palloc(4 * sizeof(float))); /* s_2, s_1, s_0, n_prime */
+		state[0] = 0.0;
+		state[1] = 0.0;
+		state[2] = 0.0;
+		state[3] = 0.0;
+		MemoryContextSwitchTo(oldcontext);
+	}
+	else
+		state = (float *) PG_GETARG_POINTER(0);
+
+	/* Skip NULLs and zero weights */
+	if (PG_ARGISNULL(1) || PG_ARGISNULL(2) || PG_GETARG_FLOAT4(2) == 0.0)
+		PG_RETURN_POINTER(state);
+
+	value = PG_GETARG_FLOAT4(1);
+	weight = PG_GETARG_FLOAT4(2);
+	w_v = weight * value;
+	w_v2 = w_v * value;
+
+	state[0] += w_v2;
+	state[1] += w_v;
+	state[2] += weight;
+	state[3] += 1.0;
+
+	PG_RETURN_POINTER(state);
+}
+
+Datum
+_float4_weighted_stddev_samp_final(PG_FUNCTION_ARGS)
+{
+	float	   *state;
+	float		s_2,
+				s_1,
+				s_0,
+				n_prime,
+				result;
+
+	state = PG_ARGISNULL(0)
+			? NULL
+			: (float *) PG_GETARG_POINTER(0);
+
+	if (state == NULL || state[3] < 2) /* No rows or too few nonzero weights */
+		PG_RETURN_NULL();
+	else
+	{
+		s_2 = state[0];
+		s_1 = state[1];
+		s_0 = state[2];
+		n_prime = state[3];
+		/* sqrt((n/(n-1)) * ((s0*s2 - s1*s1)/(s0*s0)) */
+		result = sqrt((n_prime/(n_prime - 1.0)) * ((s_0 * s_2 - s_1 * s_1)/(s_0 * s_0)));
+	}
+
+	PG_RETURN_FLOAT4(result);
 }
