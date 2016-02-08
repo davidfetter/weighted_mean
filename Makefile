@@ -1,5 +1,5 @@
 EXTENSION = weighted_stats
-EXTVERSION = 0.1.0
+EXTVERSION = 0.2.0
 DOCS = README
 TESTS = $(wildcard test/sql/*.sql)
 REGRESS = $(patsubst test/sql/%.sql,%,$(TESTS))
@@ -7,13 +7,8 @@ REGRESS_OPTS = --inputdir=test
 DOCS         = doc/weighted_stats.md
 MODULES = $(patsubst %.c,%, src/weighted_stats.c)
 PG_CONFIG = pg_config
-PG91 = $(shell $(PG_CONFIG) --version | grep -qE " 8\.| 9\.0" && echo no || echo yes)
 
-ifeq ($(PG91),yes)
 all: sql/$(EXTENSION)--$(EXTVERSION).sql
-
-
-
 
 sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 	mkdir -p $(@D)
@@ -26,9 +21,8 @@ $(EXTENSION).control: $(EXTENSION).control.in
 release-zip: all
 	git archive --format zip --prefix=weighted_stats-$(EXTVERSION)/ --output ./weighted_stats-$(EXTVERSION).zip master
 
-DATA = $(wildcard sql/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
+DATA = sql/$(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql
-endif
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
