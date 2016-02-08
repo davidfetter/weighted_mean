@@ -22,4 +22,4 @@ RUN apt-key add /etc/apt/postgres.pub.gpg && \
 
 COPY . /build/weighted-stats-0.2/
 
-RUN cd /build/weighted-stats-0.1 && make deb
+RUN cd /build/weighted-stats-0.2 && make deb
